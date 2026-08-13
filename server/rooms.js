@@ -38,8 +38,19 @@ const BOT_NAMES = [
   'Zealous Zoe', 'Bold Bella', 'Clever Chloe', 'Deft Dmitri', 'Elusive Elias',
 ];
 
-function botName() {
-  return BOT_NAMES[Math.floor(Math.random() * BOT_NAMES.length)];
+function botName(room) {
+  // Never reuse a name already taken in this room (bots or humans): unique
+  // names keep the UI and the game log unambiguous.
+  const used = new Set(room.seats.map((s) => s.name));
+  const available = BOT_NAMES.filter((n) => !used.has(n));
+  if (available.length > 0) return available[Math.floor(Math.random() * available.length)];
+  // Extremely defensive fallback (needs >30 names in one room to trigger).
+  let i = 1;
+  let name;
+  do {
+    name = `Bot ${i++}`;
+  } while (used.has(name));
+  return name;
 }
 
 function newSeat(name, isBot) {
@@ -128,7 +139,7 @@ export function rejoinRoom(code, token) {
 export function addBot(room) {
   if (room.phase !== 'lobby') throw new Error('Game already started.');
   if (room.seats.length >= room.maxSeats) throw new Error('Room is full.');
-  room.seats.push(newSeat(botName(), true));
+  room.seats.push(newSeat(botName(room), true));
 }
 
 export function removeSeat(room, seatIndex) {
