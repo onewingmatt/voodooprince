@@ -1,12 +1,46 @@
+import { useMemo, useState } from 'react';
 import Card from '../components/Card.jsx';
 import PlayerSeat from '../components/PlayerSeat.jsx';
 import Scoreboard from '../components/Scoreboard.jsx';
 import { ClientAction } from '../net/protocol.js';
 
+const SORT_KEY = 'voodoo-prince-hand-sort';
+
+function sortHand(hand, mode, trumpSuit, suits) {
+  const sorted = [...hand];
+  if (mode === 'rank') {
+    sorted.sort((a, b) => a.rank - b.rank);
+    return sorted;
+  }
+  // 'suit' mode: group by suit (trump suit last, so it stands out on the right), rank ascending within a suit.
+  const suitOrder = [...suits].sort((a, b) => {
+    if (a === trumpSuit) return 1;
+    if (b === trumpSuit) return -1;
+    return suits.indexOf(a) - suits.indexOf(b);
+  });
+  sorted.sort((a, b) => {
+    const suitDiff = suitOrder.indexOf(a.suit) - suitOrder.indexOf(b.suit);
+    if (suitDiff !== 0) return suitDiff;
+    return a.rank - b.rank;
+  });
+  return sorted;
+}
+
 export default function Game({ send, game, error }) {
   const you = game.players[game.yourSeat];
   const isYourTurn = game.turnSeat === game.yourSeat;
   const isYourTrumpChoice = game.phase === 'choosing_trump' && game.dealerSeat === game.yourSeat;
+  const [sortMode, setSortMode] = useState(() => localStorage.getItem(SORT_KEY) || 'suit');
+
+  function updateSortMode(mode) {
+    setSortMode(mode);
+    localStorage.setItem(SORT_KEY, mode);
+  }
+
+  const sortedHand = useMemo(
+    () => sortHand(you.hand ?? [], sortMode, game.trumpSuit, game.suits),
+    [you.hand, sortMode, game.trumpSuit, game.suits]
+  );
 
   return (
     <div className="game">
@@ -67,12 +101,29 @@ export default function Game({ send, game, error }) {
       {error && <p className="error">{error}</p>}
 
       <div className="hand">
-        <h3>
-          Your hand {you.name ? `(${you.name})` : ''}
-          {isYourTurn && game.phase === 'playing' ? ' — your turn' : ''}
-        </h3>
+        <div className="hand__header">
+          <h3>
+            Your hand {you.name ? `(${you.name})` : ''}
+            {isYourTurn && game.phase === 'playing' ? ' — your turn' : ''}
+          </h3>
+          <div className="sort-toggle">
+            <span className="muted">Sort:</span>
+            <button
+              className={sortMode === 'suit' ? 'active' : ''}
+              onClick={() => updateSortMode('suit')}
+            >
+              By suit
+            </button>
+            <button
+              className={sortMode === 'rank' ? 'active' : ''}
+              onClick={() => updateSortMode('rank')}
+            >
+              By rank
+            </button>
+          </div>
+        </div>
         <div className="hand__cards">
-          {(you.hand ?? []).map((card) => (
+          {sortedHand.map((card) => (
             <Card
               key={`${card.suit}-${card.rank}`}
               card={card}

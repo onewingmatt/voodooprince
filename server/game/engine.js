@@ -162,7 +162,10 @@ function resolveTrick(state) {
   const threshold = tricksToExit(state.playerCount);
 
   if (winningPlayer.tricksWon >= threshold) {
-    const others = state.activePlayers.filter((s) => s !== winner.seat);
+    // Score = tricks held by every other player, including those who already
+    // exited earlier this hand (their trick count is frozen but still counts) —
+    // not just the currently-still-in players.
+    const others = seatOrder.filter((s) => s !== winner.seat);
     const scoreGain = others.reduce((sum, s) => sum + state.players[s].tricksWon, 0);
     winningPlayer.score += scoreGain;
     winningPlayer.exited = true;

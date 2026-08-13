@@ -257,6 +257,26 @@ button.primary {
   grid-column: 1 / 2;
 }
 
+.hand__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.sort-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.sort-toggle button.active {
+  background: var(--accent);
+  color: #1b1425;
+  border-color: var(--accent);
+}
+
 .hand__cards {
   display: flex;
   gap: 8px;
