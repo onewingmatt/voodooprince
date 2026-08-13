@@ -4,6 +4,8 @@ import PlayerSeat from '../components/PlayerSeat.jsx';
 import Scoreboard from '../components/Scoreboard.jsx';
 import { ClientAction } from '../net/protocol.js';
 import { legalPlays } from '../net/legalPlays.js';
+import { sound } from '../net/sound.js';
+import { screenShake, confetti } from '../net/particles.js';
 
 const SORT_KEY = 'voodoo-prince-hand-sort';
 
@@ -89,10 +91,47 @@ export default function Game({ send, game, error, onLeave }) {
     if (prevHandRef.current !== game.handNumber) {
       prevHandRef.current = game.handNumber;
       setJustDealt(true);
+      sound.cardDeal();
       const t = setTimeout(() => setJustDealt(false), 900);
       return () => clearTimeout(t);
     }
   }, [game.handNumber]);
+
+  const prevTrumpRef = useRef(game.trumpSuit);
+  useEffect(() => {
+    if (prevTrumpRef.current !== game.trumpSuit && game.trumpSuit) {
+      prevTrumpRef.current = game.trumpSuit;
+      sound.trumpChosen();
+    }
+  }, [game.trumpSuit]);
+
+  const prevTrickLenForSoundRef = useRef(game.currentTrick.length);
+  useEffect(() => {
+    const wasFull = prevTrickLenForSoundRef.current > 0;
+    const nowEmpty = game.currentTrick.length === 0;
+    const wasEmpty = prevTrickLenForSoundRef.current === 0;
+    const nowFull = game.currentTrick.length > 0;
+
+    if (wasEmpty && nowFull) {
+      sound.cardPlay();
+    } else if (wasFull && nowEmpty) {
+      sound.trickWin();
+    }
+    prevTrickLenForSoundRef.current = game.currentTrick.length;
+  }, [game.currentTrick.length]);
+
+  useEffect(() => {
+    if (game.phase === 'game_over') {
+      sound.gameOver();
+      confetti();
+    }
+  }, [game.phase]);
+
+  useEffect(() => {
+    if (sweeping) {
+      screenShake(6, 250);
+    }
+  }, [sweeping]);
 
   return (
     <div className="game">

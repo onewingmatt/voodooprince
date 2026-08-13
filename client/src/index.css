@@ -332,6 +332,25 @@ button.primary {
   }
 }
 
+@keyframes pulse-glow {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(192, 132, 252, 0.4);
+  }
+  50% {
+    box-shadow: 0 0 0 8px rgba(192, 132, 252, 0);
+  }
+}
+
+.seat--turn::after {
+  content: '';
+  position: absolute;
+  inset: -4px;
+  border-radius: inherit;
+  border: 2px solid var(--accent);
+  animation: pulse-glow 1.5s infinite;
+  pointer-events: none;
+}
+
 .table__name {
   font-size: 12px;
   color: #cfe8d6;
@@ -339,11 +358,15 @@ button.primary {
 }
 
 @keyframes play-in {
-  from {
+  0% {
     opacity: 0;
-    transform: translateY(-14px) scale(0.85);
+    transform: translateY(-20px) scale(0.75);
   }
-  to {
+  60% {
+    opacity: 1;
+    transform: translateY(2px) scale(1.05);
+  }
+  100% {
     opacity: 1;
     transform: translateY(0) scale(1);
   }
@@ -418,8 +441,8 @@ button.primary {
 }
 
 .card:not(:disabled):hover {
-  transform: translateY(-6px);
-  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.35);
+  transform: translateY(-8px);
+  box-shadow: 0 12px 24px rgba(192, 132, 252, 0.4);
 }
 
 .card--small {
