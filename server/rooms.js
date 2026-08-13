@@ -29,8 +29,17 @@ function randomToken() {
   return Array.from({ length: 24 }, () => Math.floor(Math.random() * 36).toString(36)).join('');
 }
 
-function botName(seatIndex) {
-  return `Bot ${seatIndex + 1}`;
+const BOT_NAMES = [
+  'Ace Alice', 'Bluff Bob', 'Crafty Carol', 'Daring Dan', 'Eager Eddie',
+  'Fearless Fiona', 'Gambit Gary', 'Hustler Hank', 'Icy Iris', 'Joker Jake',
+  'Keen Kara', 'Lucky Luke', 'Mighty Mina', 'Nimble Nate', 'Outlaw Olivia',
+  'Poker Pete', 'Quick Quinn', 'Reckless Roxy', 'Sharp Stella', 'Tricky Tom',
+  'Uncanny Uma', 'Vicious Vic', 'Wild Willa', 'Sly Xavier', 'Youthful Yara',
+  'Zealous Zoe', 'Bold Bella', 'Clever Chloe', 'Deft Dmitri', 'Elusive Elias',
+];
+
+function botName() {
+  return BOT_NAMES[Math.floor(Math.random() * BOT_NAMES.length)];
 }
 
 function newSeat(name, isBot) {
@@ -119,7 +128,7 @@ export function rejoinRoom(code, token) {
 export function addBot(room) {
   if (room.phase !== 'lobby') throw new Error('Game already started.');
   if (room.seats.length >= room.maxSeats) throw new Error('Room is full.');
-  room.seats.push(newSeat(botName(room.seats.length), true));
+  room.seats.push(newSeat(botName(), true));
 }
 
 export function removeSeat(room, seatIndex) {
