@@ -6,18 +6,28 @@ const SUIT_COLOR = {
   Purple: '#8a4fd6',
 };
 
-export default function Card({ card, onClick, disabled, trump, small }) {
+const SUIT_ICON = {
+  Red: '♦',
+  Blue: '♣',
+  Green: '♠',
+  Yellow: '☀',
+  Purple: '♥',
+};
+
+export default function Card({ card, onClick, disabled, trump, small, illegal, justPlayed }) {
   const color = SUIT_COLOR[card.suit] ?? '#333';
+  const icon = SUIT_ICON[card.suit] ?? '●';
   return (
     <button
-      className={`card${disabled ? ' card--disabled' : ''}${small ? ' card--small' : ''}`}
+      className={`card${disabled ? ' card--disabled' : ''}${small ? ' card--small' : ''}${illegal ? ' card--illegal' : ''}${justPlayed ? ' card--played' : ''}`}
       style={{ '--suit-color': color }}
       onClick={onClick}
       disabled={disabled}
-      title={`${card.rank} of ${card.suit}`}
+      title={illegal ? `${card.rank} of ${card.suit} (not legal to play)` : `${card.rank} of ${card.suit}`}
     >
-      <span className="card__rank">{card.rank}</span>
-      <span className="card__suit">{card.suit}</span>
+      <span className="card__corner card__corner--tl">{card.rank}</span>
+      <span className="card__icon">{icon}</span>
+      <span className="card__corner card__corner--br">{card.rank}</span>
       {trump && <span className="card__trump">★</span>}
     </button>
   );

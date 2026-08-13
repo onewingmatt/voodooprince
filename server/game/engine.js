@@ -4,6 +4,7 @@ import {
   dealSizeFor,
   tricksToExit,
   isSpecial,
+  isZeroCard,
   trickValue,
   HANDS_PER_GAME,
   MARSHMALLOW_TARGET_SCORE,
@@ -77,7 +78,7 @@ export function chooseTrump(state, seat, suit) {
 }
 
 function effectiveRank(card, ruleset) {
-  if (ruleset !== 'marshmallow' && card.rank === 0) return 16;
+  if (isZeroCard(card, ruleset)) return 16;
   return card.rank;
 }
 

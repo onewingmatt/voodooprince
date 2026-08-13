@@ -3,6 +3,7 @@ import Card from '../components/Card.jsx';
 import PlayerSeat from '../components/PlayerSeat.jsx';
 import Scoreboard from '../components/Scoreboard.jsx';
 import { ClientAction } from '../net/protocol.js';
+import { legalPlays } from '../net/legalPlays.js';
 
 const SORT_KEY = 'voodoo-prince-hand-sort';
 
@@ -26,7 +27,7 @@ function sortHand(hand, mode, trumpSuit, suits) {
   return sorted;
 }
 
-export default function Game({ send, game, error }) {
+export default function Game({ send, game, error, onLeave }) {
   const you = game.players[game.yourSeat];
   const isYourTurn = game.turnSeat === game.yourSeat;
   const isYourTrumpChoice = game.phase === 'choosing_trump' && game.dealerSeat === game.yourSeat;
@@ -42,6 +43,12 @@ export default function Game({ send, game, error }) {
     [you.hand, sortMode, game.trumpSuit, game.suits]
   );
 
+  const playable = useMemo(() => {
+    if (!isYourTurn || game.phase !== 'playing') return new Set();
+    const legal = legalPlays(you.hand ?? [], game.currentTrick, game.trumpSuit, game.ruleset);
+    return new Set(legal.map((c) => `${c.suit}-${c.rank}`));
+  }, [isYourTurn, game.phase, you.hand, game.currentTrick, game.trumpSuit, game.ruleset]);
+
   return (
     <div className="game">
       <div className="game__header">
@@ -49,6 +56,7 @@ export default function Game({ send, game, error }) {
         <div className="game__meta">
           <span>Ruleset: {game.ruleset === 'full' ? 'Full Voodoo Prince' : 'Marshmallow Test'}</span>
           {game.trumpSuit && <span>Trump: {game.trumpSuit}</span>}
+          <button onClick={onLeave}>Leave</button>
         </div>
       </div>
 
@@ -65,13 +73,20 @@ export default function Game({ send, game, error }) {
       </div>
 
       <div className="table">
-        {game.currentTrick.length === 0 && <p className="muted">Trick is empty.</p>}
-        {game.currentTrick.map(({ seat, card }) => (
-          <div key={seat} className="table__play">
-            <div className="table__name">{game.players[seat].name}</div>
-            <Card card={card} disabled trump={card.suit === game.trumpSuit} />
-          </div>
-        ))}
+        <div className="table__felt">
+          {game.currentTrick.length === 0 && <p className="muted table__empty">Trick is empty.</p>}
+          {game.currentTrick.map(({ seat, card }, i) => (
+            <div key={seat} className="table__play">
+              <div className="table__name">{game.players[seat].name}</div>
+              <Card
+                card={card}
+                disabled
+                trump={card.suit === game.trumpSuit}
+                justPlayed={i === game.currentTrick.length - 1}
+              />
+            </div>
+          ))}
+        </div>
       </div>
 
       {isYourTrumpChoice && (
@@ -123,15 +138,20 @@ export default function Game({ send, game, error }) {
           </div>
         </div>
         <div className="hand__cards">
-          {sortedHand.map((card) => (
-            <Card
-              key={`${card.suit}-${card.rank}`}
-              card={card}
-              trump={card.suit === game.trumpSuit}
-              disabled={!isYourTurn || game.phase !== 'playing'}
-              onClick={() => send(ClientAction.PLAY_CARD, { card })}
-            />
-          ))}
+          {sortedHand.map((card) => {
+            const key = `${card.suit}-${card.rank}`;
+            const canPlay = isYourTurn && game.phase === 'playing' && playable.has(key);
+            return (
+              <Card
+                key={key}
+                card={card}
+                trump={card.suit === game.trumpSuit}
+                disabled={!canPlay}
+                illegal={isYourTurn && game.phase === 'playing' && !canPlay}
+                onClick={() => send(ClientAction.PLAY_CARD, { card })}
+              />
+            );
+          })}
         </div>
       </div>
 

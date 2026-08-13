@@ -8,6 +8,7 @@ import {
   createRoom,
   getRoom,
   joinRoom,
+  rejoinRoom,
   addBot,
   removeSeat,
   setRuleset,
@@ -16,11 +17,12 @@ import {
   submitCard,
   serializeLobby,
   serializeGameFor,
-  runBots,
+  detachConnection,
 } from './rooms.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = process.env.PORT || 3001;
+const HOST_SEAT = 0;
 
 const app = express();
 const clientDist = path.join(__dirname, '..', 'client', 'dist');
@@ -57,6 +59,21 @@ function broadcastBoth(room) {
   if (room.game) broadcastGame(room);
 }
 
+function attachToSeat(ws, room, seatIndex) {
+  // A single connection can only ever occupy one seat: leave any previous one first.
+  detachConnection(ws);
+  const seat = room.seats[seatIndex];
+  seat.ws = ws;
+  seat.connected = true;
+  ws.roomCode = room.code;
+  ws.seatIndex = seatIndex;
+  send(ws, ServerEvent.SESSION, { code: room.code, token: seat.token, seatIndex });
+}
+
+function requireHost(room, ws) {
+  if (ws.seatIndex !== HOST_SEAT) throw new Error('Only the host can do that.');
+}
+
 wss.on('connection', (ws) => {
   ws.roomCode = null;
   ws.seatIndex = null;
@@ -78,26 +95,26 @@ wss.on('connection', (ws) => {
             maxSeats: payload.maxSeats,
             ruleset: payload.ruleset,
           });
-          room.seats[0].ws = ws;
-          room.seats[0].connected = true;
-          ws.roomCode = room.code;
-          ws.seatIndex = 0;
+          attachToSeat(ws, room, 0);
           broadcastBoth(room);
           break;
         }
         case ClientAction.JOIN_ROOM: {
           const room = joinRoom(payload.code, payload.name || 'Player');
-          const seatIndex = room.seats.length - 1;
-          room.seats[seatIndex].ws = ws;
-          room.seats[seatIndex].connected = true;
-          ws.roomCode = room.code;
-          ws.seatIndex = seatIndex;
+          attachToSeat(ws, room, room.seats.length - 1);
+          broadcastBoth(room);
+          break;
+        }
+        case ClientAction.REJOIN_ROOM: {
+          const { room, seatIndex } = rejoinRoom(payload.code, payload.token);
+          attachToSeat(ws, room, seatIndex);
           broadcastBoth(room);
           break;
         }
         case ClientAction.ADD_BOT: {
           const room = getRoom(ws.roomCode);
           if (!room) throw new Error('Not in a room.');
+          requireHost(room, ws);
           addBot(room);
           broadcastBoth(room);
           break;
@@ -105,6 +122,7 @@ wss.on('connection', (ws) => {
         case ClientAction.REMOVE_SEAT: {
           const room = getRoom(ws.roomCode);
           if (!room) throw new Error('Not in a room.');
+          requireHost(room, ws);
           removeSeat(room, payload.seatIndex);
           broadcastBoth(room);
           break;
@@ -112,6 +130,7 @@ wss.on('connection', (ws) => {
         case ClientAction.SET_RULESET: {
           const room = getRoom(ws.roomCode);
           if (!room) throw new Error('Not in a room.');
+          requireHost(room, ws);
           setRuleset(room, payload.ruleset);
           broadcastBoth(room);
           break;
@@ -119,6 +138,7 @@ wss.on('connection', (ws) => {
         case ClientAction.START_GAME: {
           const room = getRoom(ws.roomCode);
           if (!room) throw new Error('Not in a room.');
+          requireHost(room, ws);
           startGame(room, () => broadcastGame(room));
           broadcastBoth(room);
           break;
@@ -147,17 +167,8 @@ wss.on('connection', (ws) => {
 
   ws.on('close', () => {
     const room = getRoom(ws.roomCode);
-    if (!room) return;
-    const seat = room.seats[ws.seatIndex];
-    if (!seat) return;
-    seat.ws = null;
-    seat.connected = false;
-    if (room.phase === 'in_game') {
-      // Keep the game moving: a disconnected human seat plays like a bot would.
-      seat.isBot = true;
-      runBots(room, () => broadcastGame(room));
-    }
-    broadcastBoth(room);
+    detachConnection(ws);
+    if (room) broadcastBoth(room);
   });
 });
 

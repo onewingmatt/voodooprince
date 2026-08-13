@@ -1,23 +1,26 @@
 import { useState } from 'react';
 import { ClientAction } from '../net/protocol.js';
 
-export default function Lobby({ send, room, error }) {
+export default function Lobby({ send, room, error, isHost, onLeave }) {
   const [name, setName] = useState('');
   const [joinCode, setJoinCode] = useState('');
   const [maxSeats, setMaxSeats] = useState(4);
   const [ruleset, setRuleset] = useState('full');
 
   if (room) {
-    const isHost = true; // seat 0 is host; server enforces no restricted actions beyond lobby-phase checks
     return (
       <div className="panel">
-        <h2>Room {room.code}</h2>
+        <div className="panel__header">
+          <h2>Room {room.code}</h2>
+          <button onClick={onLeave}>Leave</button>
+        </div>
         <p className="muted">Share this code with other players.</p>
 
         <div className="ruleset-toggle">
           <label>
             <input
               type="radio"
+              disabled={!isHost}
               checked={room.ruleset === 'full'}
               onChange={() => send(ClientAction.SET_RULESET, { ruleset: 'full' })}
             />
@@ -26,18 +29,27 @@ export default function Lobby({ send, room, error }) {
           <label>
             <input
               type="radio"
+              disabled={!isHost}
               checked={room.ruleset === 'marshmallow'}
               onChange={() => send(ClientAction.SET_RULESET, { ruleset: 'marshmallow' })}
             />
             Marshmallow Test variant (no specials, race to 20)
           </label>
         </div>
+        {!isHost && <p className="muted">Only the host can change these settings.</p>}
 
         <ul className="seat-list">
           {room.seats.map((seat, i) => (
             <li key={i}>
-              <span>{seat.name}{seat.isBot ? ' 🤖' : ''}{!seat.isBot && !seat.connected ? ' (disconnected)' : ''}</span>
-              {i > 0 && <button onClick={() => send(ClientAction.REMOVE_SEAT, { seatIndex: i })}>Remove</button>}
+              <span>
+                {i === 0 ? '👑 ' : ''}
+                {seat.name}
+                {seat.isBot ? ' 🤖' : ''}
+                {!seat.isBot && !seat.connected ? ' (disconnected)' : ''}
+              </span>
+              {isHost && i > 0 && (
+                <button onClick={() => send(ClientAction.REMOVE_SEAT, { seatIndex: i })}>Remove</button>
+              )}
             </li>
           ))}
           {Array.from({ length: room.maxSeats - room.seats.length }).map((_, i) => (
@@ -47,17 +59,21 @@ export default function Lobby({ send, room, error }) {
           ))}
         </ul>
 
-        {room.seats.length < room.maxSeats && (
+        {isHost && room.seats.length < room.maxSeats && (
           <button onClick={() => send(ClientAction.ADD_BOT)}>Add bot</button>
         )}
 
-        <button
-          className="primary"
-          disabled={room.seats.length < 2}
-          onClick={() => send(ClientAction.START_GAME)}
-        >
-          Start game
-        </button>
+        {isHost ? (
+          <button
+            className="primary"
+            disabled={room.seats.length < 2}
+            onClick={() => send(ClientAction.START_GAME)}
+          >
+            Start game
+          </button>
+        ) : (
+          <p className="muted">Waiting for the host to start the game...</p>
+        )}
 
         {error && <p className="error">{error}</p>}
       </div>

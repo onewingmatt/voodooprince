@@ -3,6 +3,7 @@
 export const ClientAction = {
   CREATE_ROOM: 'CREATE_ROOM',
   JOIN_ROOM: 'JOIN_ROOM',
+  REJOIN_ROOM: 'REJOIN_ROOM',
   ADD_BOT: 'ADD_BOT',
   REMOVE_SEAT: 'REMOVE_SEAT',
   SET_RULESET: 'SET_RULESET',
@@ -12,6 +13,7 @@ export const ClientAction = {
 };
 
 export const ServerEvent = {
+  SESSION: 'SESSION',
   ROOM_STATE: 'ROOM_STATE',
   GAME_STATE: 'GAME_STATE',
   ERROR: 'ERROR',

@@ -4,7 +4,7 @@ import Lobby from './screens/Lobby.jsx';
 import Game from './screens/Game.jsx';
 
 export default function App() {
-  const { connected, room, game, error, clearError, send } = useGameSocket();
+  const { connected, session, room, game, error, clearError, send, leaveRoom } = useGameSocket();
 
   useEffect(() => {
     if (!error) return;
@@ -12,13 +12,15 @@ export default function App() {
     return () => clearTimeout(t);
   }, [error, clearError]);
 
+  const isHost = session?.seatIndex === 0;
+
   return (
     <div className="app">
       {!connected && <p className="banner">Connecting...</p>}
       {room?.phase === 'in_game' && game ? (
-        <Game send={send} game={game} error={error} />
+        <Game send={send} game={game} error={error} onLeave={leaveRoom} />
       ) : (
-        <Lobby send={send} room={room} error={error} />
+        <Lobby send={send} room={room} error={error} isHost={isHost} onLeave={leaveRoom} />
       )}
     </div>
   );

@@ -1,5 +1,5 @@
 export default function Scoreboard({ players }) {
-  const ranked = [...players].sort((a, b) => b.score - a.score);
+  const ranked = players.map((p, i) => ({ ...p, seatIndex: i })).sort((a, b) => b.score - a.score);
   return (
     <table className="scoreboard">
       <thead>
@@ -10,7 +10,7 @@ export default function Scoreboard({ players }) {
       </thead>
       <tbody>
         {ranked.map((p) => (
-          <tr key={p.name}>
+          <tr key={p.seatIndex}>
             <td>{p.name}{p.isBot ? ' 🤖' : ''}</td>
             <td>{p.score}</td>
           </tr>

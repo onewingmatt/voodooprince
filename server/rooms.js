@@ -12,6 +12,7 @@ const MAX_SEATS = 5;
 const MIN_SEATS = 2;
 const BOT_DELAY_MS = 700;
 const BETWEEN_HAND_DELAY_MS = 2500;
+const ABANDONED_ROOM_CLEANUP_MS = 10 * 60 * 1000;
 
 const rooms = new Map();
 
@@ -24,8 +25,52 @@ function randomCode() {
   return code;
 }
 
+function randomToken() {
+  return Array.from({ length: 24 }, () => Math.floor(Math.random() * 36).toString(36)).join('');
+}
+
 function botName(seatIndex) {
   return `Bot ${seatIndex + 1}`;
+}
+
+function newSeat(name, isBot) {
+  return {
+    token: isBot ? null : randomToken(),
+    name,
+    isBot,
+    ws: null,
+    connected: isBot,
+    humanDisconnected: false,
+  };
+}
+
+function cancelCleanup(room) {
+  if (room.cleanupTimer) {
+    clearTimeout(room.cleanupTimer);
+    room.cleanupTimer = null;
+  }
+}
+
+function scheduleCleanup(room, delayMs) {
+  cancelCleanup(room);
+  room.cleanupTimer = setTimeout(() => {
+    rooms.delete(room.code);
+  }, delayMs);
+}
+
+// Called whenever a room's connection/phase state changes, to keep an
+// abandoned room (no connected humans) from lingering in memory forever.
+function reviewLifecycle(room) {
+  const anyHumanConnected = room.seats.some((s) => !s.isBot && s.connected);
+  if (anyHumanConnected) {
+    cancelCleanup(room);
+    return;
+  }
+  if (room.phase === 'lobby') {
+    rooms.delete(room.code);
+    return;
+  }
+  scheduleCleanup(room, ABANDONED_ROOM_CLEANUP_MS);
 }
 
 export function createRoom({ hostName, maxSeats = 4, ruleset = 'full' }) {
@@ -34,9 +79,10 @@ export function createRoom({ hostName, maxSeats = 4, ruleset = 'full' }) {
     code,
     ruleset,
     maxSeats: Math.min(Math.max(maxSeats, MIN_SEATS), MAX_SEATS),
-    seats: [{ id: null, name: hostName, isBot: false, ws: null, connected: false }],
+    seats: [newSeat(hostName, false)],
     phase: 'lobby',
     game: null,
+    cleanupTimer: null,
   };
   rooms.set(code, room);
   return room;
@@ -51,14 +97,29 @@ export function joinRoom(code, name) {
   if (!room) throw new Error('Room not found.');
   if (room.phase !== 'lobby') throw new Error('Game already started.');
   if (room.seats.length >= room.maxSeats) throw new Error('Room is full.');
-  room.seats.push({ id: null, name, isBot: false, ws: null, connected: false });
+  room.seats.push(newSeat(name, false));
   return room;
+}
+
+// Reclaims a seat by its join token, whether the room is still in the lobby
+// or mid-game (a disconnected human's seat becomes bot-controlled but keeps
+// its token so the original player can retake it).
+export function rejoinRoom(code, token) {
+  const room = getRoom(code);
+  if (!room) throw new Error('Room not found.');
+  const seatIndex = room.seats.findIndex((s) => s.token && s.token === token);
+  if (seatIndex === -1) throw new Error('That seat is no longer available.');
+  const seat = room.seats[seatIndex];
+  seat.isBot = false;
+  seat.humanDisconnected = false;
+  seat.connected = true;
+  return { room, seatIndex };
 }
 
 export function addBot(room) {
   if (room.phase !== 'lobby') throw new Error('Game already started.');
   if (room.seats.length >= room.maxSeats) throw new Error('Room is full.');
-  room.seats.push({ id: null, name: botName(room.seats.length), isBot: true, ws: null, connected: true });
+  room.seats.push(newSeat(botName(room.seats.length), true));
 }
 
 export function removeSeat(room, seatIndex) {
@@ -78,7 +139,7 @@ export function startGame(room, onBroadcast) {
   if (room.seats.length < MIN_SEATS) throw new Error('Need at least 2 players.');
   room.phase = 'in_game';
   room.game = createGame(
-    room.seats.map((s) => ({ id: s.id, name: s.name, isBot: s.isBot })),
+    room.seats.map((s) => ({ id: s.token, name: s.name, isBot: s.isBot })),
     room.ruleset
   );
   runBots(room, onBroadcast);
@@ -88,13 +149,24 @@ export function runBots(room, onBroadcast) {
   const game = room.game;
   if (!game) return;
 
+  if (game.phase === 'game_over') {
+    reviewLifecycle(room);
+    return;
+  }
+
   if (game.phase === 'choosing_trump' && room.seats[game.dealerSeat]?.isBot) {
+    const dealerSeat = game.dealerSeat;
     setTimeout(() => {
-      if (room.game !== game || game.phase !== 'choosing_trump') return;
-      const suit = chooseBotTrump(game, game.dealerSeat);
-      chooseTrump(game, game.dealerSeat, suit);
-      onBroadcast();
-      runBots(room, onBroadcast);
+      try {
+        if (room.game !== game || game.phase !== 'choosing_trump' || game.dealerSeat !== dealerSeat) return;
+        if (!room.seats[dealerSeat]?.isBot) return;
+        const suit = chooseBotTrump(game, dealerSeat);
+        chooseTrump(game, dealerSeat, suit);
+        onBroadcast();
+        runBots(room, onBroadcast);
+      } catch (err) {
+        console.error('Bot trump-choice error:', err);
+      }
     }, BOT_DELAY_MS);
     return;
   }
@@ -103,34 +175,68 @@ export function runBots(room, onBroadcast) {
     const seat = nextToPlay(game);
     if (room.seats[seat]?.isBot) {
       setTimeout(() => {
-        if (room.game !== game || game.phase !== 'playing') return;
-        const card = chooseBotCard(game, seat);
-        playCard(game, seat, card);
-        onBroadcast();
-        runBots(room, onBroadcast);
+        try {
+          // Re-validate everything at fire time: a disconnect/rejoin racing
+          // this timer may have already advanced the turn or reclaimed the seat.
+          if (room.game !== game || game.phase !== 'playing') return;
+          if (nextToPlay(game) !== seat) return;
+          if (!room.seats[seat]?.isBot) return;
+          const card = chooseBotCard(game, seat);
+          playCard(game, seat, card);
+          onBroadcast();
+          runBots(room, onBroadcast);
+        } catch (err) {
+          console.error('Bot play error:', err);
+        }
       }, BOT_DELAY_MS);
       return;
     }
   }
 
   if (game.phase === 'between_hands') {
+    const handNumber = game.handNumber;
     setTimeout(() => {
-      if (room.game !== game || game.phase !== 'between_hands') return;
-      advanceToNextHand(game);
-      onBroadcast();
-      runBots(room, onBroadcast);
+      try {
+        if (room.game !== game || game.phase !== 'between_hands' || game.handNumber !== handNumber) return;
+        advanceToNextHand(game);
+        onBroadcast();
+        runBots(room, onBroadcast);
+      } catch (err) {
+        console.error('Bot hand-advance error:', err);
+      }
     }, BETWEEN_HAND_DELAY_MS);
   }
 }
 
 export function submitTrump(room, seatIndex, suit, onBroadcast) {
+  if (!room.game) throw new Error("The game hasn't started yet.");
   chooseTrump(room.game, seatIndex, suit);
   runBots(room, onBroadcast);
 }
 
 export function submitCard(room, seatIndex, card, onBroadcast) {
+  if (!room.game) throw new Error("The game hasn't started yet.");
   playCard(room.game, seatIndex, card);
   runBots(room, onBroadcast);
+}
+
+// Detaches a websocket from whatever seat it currently occupies (used both on
+// disconnect and before attaching to a different/new room, so one connection
+// can never hold two seats at once).
+export function detachConnection(ws) {
+  const room = getRoom(ws.roomCode);
+  if (!room) return;
+  const seat = room.seats[ws.seatIndex];
+  if (!seat || seat.ws !== ws) return;
+  seat.ws = null;
+  seat.connected = false;
+  if (room.phase === 'in_game' && !seat.isBot) {
+    seat.isBot = true;
+    seat.humanDisconnected = true;
+  }
+  ws.roomCode = null;
+  ws.seatIndex = null;
+  reviewLifecycle(room);
 }
 
 export function serializeLobby(room) {
@@ -139,7 +245,12 @@ export function serializeLobby(room) {
     ruleset: room.ruleset,
     maxSeats: room.maxSeats,
     phase: room.phase,
-    seats: room.seats.map((s) => ({ name: s.name, isBot: s.isBot, connected: s.connected })),
+    seats: room.seats.map((s) => ({
+      name: s.name,
+      isBot: s.isBot,
+      connected: s.connected,
+      humanDisconnected: s.humanDisconnected,
+    })),
   };
 }
 
@@ -161,6 +272,7 @@ export function serializeGameFor(room, viewerSeat) {
     players: game.players.map((p, i) => ({
       name: p.name,
       isBot: p.isBot,
+      humanDisconnected: room.seats[i]?.humanDisconnected ?? false,
       tricksWon: p.tricksWon,
       exited: p.exited,
       score: p.score,
