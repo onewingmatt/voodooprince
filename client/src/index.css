@@ -283,6 +283,53 @@ button.primary {
 .table__play {
   text-align: center;
   animation: play-in 0.25s ease-out;
+  position: relative;
+}
+
+.table__play--sweep {
+  animation: sweep-out 0.55s ease-in forwards;
+  animation-delay: var(--sweep-delay, 0ms);
+}
+
+.table__winner-banner {
+  position: absolute;
+  padding: 8px 16px;
+  background: rgba(27, 20, 37, 0.85);
+  border: 1px solid var(--accent);
+  border-radius: 20px;
+  color: var(--text);
+  font-weight: 600;
+  font-size: 14px;
+  animation: banner-in 0.55s ease-out;
+  pointer-events: none;
+}
+
+@keyframes sweep-out {
+  0% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-30px) scale(0.6);
+  }
+}
+
+@keyframes banner-in {
+  0% {
+    opacity: 0;
+    transform: scale(0.8);
+  }
+  20% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  80% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
 }
 
 .table__name {
@@ -336,6 +383,22 @@ button.primary {
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
+}
+
+.card--deal-wrap {
+  animation: deal-in 0.4s ease-out both;
+  animation-delay: var(--deal-delay, 0ms);
+}
+
+@keyframes deal-in {
+  0% {
+    opacity: 0;
+    transform: translateY(-24px) rotate(-6deg);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) rotate(0deg);
+  }
 }
 
 .card {

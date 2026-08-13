@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import Card from '../components/Card.jsx';
 import PlayerSeat from '../components/PlayerSeat.jsx';
 import Scoreboard from '../components/Scoreboard.jsx';
@@ -49,6 +49,51 @@ export default function Game({ send, game, error, onLeave }) {
     return new Set(legal.map((c) => `${c.suit}-${c.rank}`));
   }, [isYourTurn, game.phase, you.hand, game.currentTrick, game.trumpSuit, game.ruleset]);
 
+  const SWEEP_MS = 650;
+  const [displayTrick, setDisplayTrick] = useState(game.currentTrick);
+  const [sweeping, setSweeping] = useState(false);
+  const [winnerName, setWinnerName] = useState(null);
+  const prevTrickLenRef = useRef(game.currentTrick.length);
+  const latestTrickRef = useRef(game.currentTrick);
+  const sweepTimeoutRef = useRef(null);
+
+  useEffect(() => {
+    latestTrickRef.current = game.currentTrick;
+  });
+
+  useEffect(() => {
+    const wasFull = prevTrickLenRef.current > 0;
+    const nowEmpty = game.currentTrick.length === 0;
+    prevTrickLenRef.current = game.currentTrick.length;
+
+    if (wasFull && nowEmpty && !sweeping) {
+      setSweeping(true);
+      const winLine = [...game.log].reverse().find((l) => l.includes('wins the trick'));
+      setWinnerName(winLine ? winLine.split(' wins the trick')[0] : null);
+      clearTimeout(sweepTimeoutRef.current);
+      sweepTimeoutRef.current = setTimeout(() => {
+        setSweeping(false);
+        setWinnerName(null);
+        setDisplayTrick(latestTrickRef.current);
+      }, SWEEP_MS);
+    } else if (!sweeping) {
+      setDisplayTrick(game.currentTrick);
+    }
+  }, [game.currentTrick, game.log, sweeping]);
+
+  useEffect(() => () => clearTimeout(sweepTimeoutRef.current), []);
+
+  const prevHandRef = useRef(game.handNumber);
+  const [justDealt, setJustDealt] = useState(true);
+  useEffect(() => {
+    if (prevHandRef.current !== game.handNumber) {
+      prevHandRef.current = game.handNumber;
+      setJustDealt(true);
+      const t = setTimeout(() => setJustDealt(false), 900);
+      return () => clearTimeout(t);
+    }
+  }, [game.handNumber]);
+
   return (
     <div className="game">
       <div className="game__header">
@@ -74,18 +119,23 @@ export default function Game({ send, game, error, onLeave }) {
 
       <div className="table">
         <div className="table__felt">
-          {game.currentTrick.length === 0 && <p className="muted table__empty">Trick is empty.</p>}
-          {game.currentTrick.map(({ seat, card }, i) => (
-            <div key={seat} className="table__play">
+          {displayTrick.length === 0 && <p className="muted table__empty">Trick is empty.</p>}
+          {displayTrick.map(({ seat, card }, i) => (
+            <div
+              key={seat}
+              className={`table__play${sweeping ? ' table__play--sweep' : ''}`}
+              style={{ '--sweep-delay': `${i * 40}ms` }}
+            >
               <div className="table__name">{game.players[seat].name}</div>
               <Card
                 card={card}
                 disabled
                 trump={card.suit === game.trumpSuit}
-                justPlayed={i === game.currentTrick.length - 1}
+                justPlayed={!sweeping && i === displayTrick.length - 1}
               />
             </div>
           ))}
+          {winnerName && <div className="table__winner-banner">{winnerName} wins the trick!</div>}
         </div>
       </div>
 
@@ -138,18 +188,23 @@ export default function Game({ send, game, error, onLeave }) {
           </div>
         </div>
         <div className="hand__cards">
-          {sortedHand.map((card) => {
+          {sortedHand.map((card, i) => {
             const key = `${card.suit}-${card.rank}`;
             const canPlay = isYourTurn && game.phase === 'playing' && playable.has(key);
             return (
-              <Card
+              <div
                 key={key}
-                card={card}
-                trump={card.suit === game.trumpSuit}
-                disabled={!canPlay}
-                illegal={isYourTurn && game.phase === 'playing' && !canPlay}
-                onClick={() => send(ClientAction.PLAY_CARD, { card })}
-              />
+                className={justDealt ? 'card--deal-wrap' : undefined}
+                style={justDealt ? { '--deal-delay': `${i * 35}ms` } : undefined}
+              >
+                <Card
+                  card={card}
+                  trump={card.suit === game.trumpSuit}
+                  disabled={!canPlay}
+                  illegal={isYourTurn && game.phase === 'playing' && !canPlay}
+                  onClick={() => send(ClientAction.PLAY_CARD, { card })}
+                />
+              </div>
             );
           })}
         </div>
