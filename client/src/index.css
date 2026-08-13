@@ -1,13 +1,13 @@
 :root {
-  --bg: #1b1425;
-  --panel: #241c33;
-  --panel-nested: #2d2340;
-  --text: #ece7f5;
-  --muted: #a89cc0;
-  --accent: #c084fc;
-  --border: #3a2e52;
-  --error: #f87171;
-  font: 16px/1.45 system-ui, 'Segoe UI', Roboto, sans-serif;
+  --bg: #0f0d15;
+  --panel: #1a1625;
+  --panel-nested: #242030;
+  --text: #e8e4f0;
+  --muted: #9a8fb0;
+  --accent: #9d7dda;
+  --border: #32283f;
+  --error: #e24c4c;
+  font: 15px/1.5 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
   color-scheme: dark;
   color: var(--text);
   background: var(--bg);
@@ -56,8 +56,9 @@ h1, h2, h3 {
   background: var(--panel);
   border: 1px solid var(--border);
   border-radius: 12px;
-  padding: 20px;
+  padding: 24px;
   margin-bottom: 16px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
 }
 
 .panel--nested {
@@ -85,27 +86,36 @@ input, select {
 button {
   background: var(--panel-nested);
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: 8px;
   color: var(--text);
-  padding: 8px 14px;
+  padding: 10px 16px;
   cursor: pointer;
   font-size: 14px;
+  font-weight: 500;
+  transition: all 0.2s ease;
 }
 
 button:hover:not(:disabled) {
   border-color: var(--accent);
+  color: var(--accent);
 }
 
 button:disabled {
-  opacity: 0.4;
+  opacity: 0.45;
   cursor: not-allowed;
 }
 
 button.primary {
   background: var(--accent);
-  color: #1b1425;
+  color: #0f0d15;
   font-weight: 600;
   border: none;
+  box-shadow: 0 4px 12px rgba(157, 125, 218, 0.25);
+}
+
+button.primary:hover:not(:disabled) {
+  box-shadow: 0 6px 16px rgba(157, 125, 218, 0.4);
+  color: #0f0d15;
 }
 
 .lobby-actions {
@@ -184,22 +194,22 @@ button.primary {
 }
 
 .seat {
-  background: linear-gradient(160deg, var(--panel), var(--panel-nested));
+  background: var(--panel);
   border: 1px solid var(--border);
-  border-radius: 12px;
-  padding: 10px 14px;
+  border-radius: 10px;
+  padding: 12px 16px;
   min-width: 180px;
   position: relative;
   display: flex;
   align-items: center;
   gap: 10px;
-  transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
+  transition: border-color 0.3s ease, box-shadow 0.3s ease;
 }
 
 .seat--turn {
   border-color: var(--accent);
-  box-shadow: 0 0 0 1px var(--accent), 0 0 16px -4px var(--accent);
-  transform: translateY(-2px);
+  box-shadow: 0 0 12px rgba(157, 125, 218, 0.3);
+  animation: pulse-glow 2s ease-in-out infinite;
 }
 
 .seat--exited {
@@ -334,21 +344,11 @@ button.primary {
 
 @keyframes pulse-glow {
   0%, 100% {
-    box-shadow: 0 0 0 0 rgba(192, 132, 252, 0.4);
+    box-shadow: 0 0 0 0 rgba(157, 125, 218, 0.2);
   }
   50% {
-    box-shadow: 0 0 0 8px rgba(192, 132, 252, 0);
+    box-shadow: 0 0 0 4px rgba(157, 125, 218, 0);
   }
-}
-
-.seat--turn::after {
-  content: '';
-  position: absolute;
-  inset: -4px;
-  border-radius: inherit;
-  border: 2px solid var(--accent);
-  animation: pulse-glow 1.5s infinite;
-  pointer-events: none;
 }
 
 .table__name {
@@ -428,21 +428,21 @@ button.primary {
   width: 60px;
   height: 84px;
   border-radius: 8px;
-  border: 1px solid rgba(0, 0, 0, 0.15);
-  background: linear-gradient(155deg, #ffffff 0%, #f4f2f8 100%);
-  color: #17131f;
+  border: 1px solid rgba(0, 0, 0, 0.2);
+  background: linear-gradient(135deg, #fafaf8 0%, #f5f3f9 100%);
+  color: #1a1625;
   display: flex;
   align-items: center;
   justify-content: center;
   position: relative;
   font-weight: 700;
-  box-shadow: 0 2px 0 rgba(0, 0, 0, 0.15), 0 4px 8px rgba(0, 0, 0, 0.25);
-  transition: transform 0.15s ease, box-shadow 0.15s ease;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1), 0 4px 12px rgba(0, 0, 0, 0.15);
+  transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.2s ease;
 }
 
 .card:not(:disabled):hover {
-  transform: translateY(-8px);
-  box-shadow: 0 12px 24px rgba(192, 132, 252, 0.4);
+  transform: translateY(-6px);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.2);
 }
 
 .card--small {

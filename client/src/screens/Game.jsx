@@ -123,13 +123,12 @@ export default function Game({ send, game, error, onLeave }) {
   useEffect(() => {
     if (game.phase === 'game_over') {
       sound.gameOver();
-      confetti();
     }
   }, [game.phase]);
 
   useEffect(() => {
     if (sweeping) {
-      screenShake(6, 250);
+      screenShake(2, 150);
     }
   }, [sweeping]);
 
