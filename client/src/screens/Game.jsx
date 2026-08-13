@@ -145,6 +145,12 @@ export default function Game({ send, game, error, onLeave }) {
         <div className="game__meta">
           <span>Ruleset: {game.ruleset === 'full' ? 'Full Voodoo Prince' : 'Marshmallow Test'}</span>
           {game.trumpSuit && <span>Trump: {game.trumpSuit}</span>}
+          {game.ruleset === 'full' && (
+            <span className="game__legend">
+              <span className="legend-item">⏬ = beats suit</span>
+              <span className="legend-item">×2 = double</span>
+            </span>
+          )}
           <button onClick={onLeave}>Leave</button>
         </div>
       </div>

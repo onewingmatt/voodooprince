@@ -18,11 +18,20 @@ export default function Card({ card, onClick, disabled, trump, small, illegal, j
   const color = SUIT_COLOR[card.suit] ?? '#333';
   const icon = SUIT_ICON[card.suit] ?? '●';
   const isSpecial = card.rank === 0 || card.rank === 5 || card.rank === 7;
-  const specialLabel = card.rank === 0 ? 'Beats all' : card.rank === 5 || card.rank === 7 ? 'Double' : null;
+  let specialSymbol = null;
+  let specialTitle = null;
+
+  if (card.rank === 0) {
+    specialSymbol = '⏬';
+    specialTitle = 'beats any card in its suit';
+  } else if (card.rank === 5 || card.rank === 7) {
+    specialSymbol = '×2';
+    specialTitle = 'counts as 2 tricks';
+  }
 
   let title = illegal ? `${card.rank} of ${card.suit} (not legal to play)` : `${card.rank} of ${card.suit}`;
-  if (isSpecial) {
-    title += card.rank === 0 ? ' — beats any card in its suit' : ' — counts as 2 tricks';
+  if (specialTitle) {
+    title += ` — ${specialTitle}`;
   }
 
   return (
@@ -37,7 +46,7 @@ export default function Card({ card, onClick, disabled, trump, small, illegal, j
       <span className="card__icon">{icon}</span>
       <span className="card__corner card__corner--br">{card.rank}</span>
       {trump && <span className="card__trump">★</span>}
-      {isSpecial && <span className="card__special-badge">{specialLabel}</span>}
+      {specialSymbol && <span className="card__special-symbol">{specialSymbol}</span>}
     </button>
   );
 }
