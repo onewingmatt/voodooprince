@@ -85,6 +85,12 @@ export default function Game({ send, game, error, onLeave }) {
 
   useEffect(() => () => clearTimeout(sweepTimeoutRef.current), []);
 
+  const logEndRef = useRef(null);
+
+  useEffect(() => {
+    logEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [game.log]);
+
   const prevHandRef = useRef(game.handNumber);
   const [justDealt, setJustDealt] = useState(true);
   useEffect(() => {
@@ -254,6 +260,7 @@ export default function Game({ send, game, error, onLeave }) {
           {game.log.map((line, i) => (
             <div key={i} className="log__line">{line}</div>
           ))}
+          <div ref={logEndRef} />
         </div>
       </div>
     </div>

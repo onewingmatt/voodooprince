@@ -463,6 +463,25 @@ button.primary:hover:not(:disabled) {
   animation: play-in 0.25s ease-out;
 }
 
+.card--special {
+  border-color: var(--accent);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1), 0 0 8px rgba(157, 125, 218, 0.2);
+}
+
+.card__special-badge {
+  position: absolute;
+  bottom: 2px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 9px;
+  font-weight: 700;
+  color: var(--accent);
+  background: rgba(15, 13, 21, 0.8);
+  padding: 1px 4px;
+  border-radius: 3px;
+  white-space: nowrap;
+}
+
 .seat__disconnected {
   color: var(--error);
   font-size: 11px;
