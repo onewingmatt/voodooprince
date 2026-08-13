@@ -14,7 +14,9 @@ export default function Lobby({ send, room, error, isHost, onLeave }) {
           <h2>Room {room.code}</h2>
           <button onClick={onLeave}>Leave</button>
         </div>
-        <p className="muted">Share this code with other players.</p>
+        <p className="muted">
+          Share this code with other players. Seats: {room.seats.length}/{room.maxSeats}
+        </p>
 
         <div className="ruleset-toggle">
           <label>
@@ -59,8 +61,12 @@ export default function Lobby({ send, room, error, isHost, onLeave }) {
           ))}
         </ul>
 
-        {isHost && room.seats.length < room.maxSeats && (
-          <button onClick={() => send(ClientAction.ADD_BOT)}>Add bot</button>
+        {isHost && (
+          room.seats.length < room.maxSeats ? (
+            <button onClick={() => send(ClientAction.ADD_BOT)}>Add bot</button>
+          ) : (
+            <p className="muted">Room is full ({room.maxSeats} seats) — remove a seat to add a bot.</p>
+          )
         )}
 
         {isHost ? (
