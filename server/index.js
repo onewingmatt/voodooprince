@@ -18,6 +18,7 @@ import {
   serializeLobby,
   serializeGameFor,
   detachConnection,
+  runBots,
 } from './rooms.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -61,7 +62,12 @@ function broadcastBoth(room) {
 
 function attachToSeat(ws, room, seatIndex) {
   // A single connection can only ever occupy one seat: leave any previous one first.
+  const prevRoom = getRoom(ws.roomCode);
   detachConnection(ws);
+  // If that left a seat in a live game, the new bot needs the action loop kicked.
+  if (prevRoom && prevRoom !== room && prevRoom.phase === 'in_game') {
+    runBots(prevRoom, () => broadcastGame(prevRoom));
+  }
   const seat = room.seats[seatIndex];
   seat.ws = ws;
   seat.connected = true;
@@ -168,7 +174,11 @@ wss.on('connection', (ws) => {
   ws.on('close', () => {
     const room = getRoom(ws.roomCode);
     detachConnection(ws);
-    if (room) broadcastBoth(room);
+    if (room) {
+      // The seat just became a bot (if mid-game): start its action loop.
+      if (room.phase === 'in_game') runBots(room, () => broadcastGame(room));
+      broadcastBoth(room);
+    }
   });
 });
 
