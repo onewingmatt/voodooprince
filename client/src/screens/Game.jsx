@@ -6,6 +6,7 @@ import { ClientAction } from '../net/protocol.js';
 import { legalPlays } from '../net/legalPlays.js';
 import { sound } from '../net/sound.js';
 import { screenShake, confetti } from '../net/particles.js';
+import { loadSettings, saveSettings } from '../net/settings.js';
 
 const SORT_KEY = 'voodoo-prince-hand-sort';
 
@@ -34,6 +35,19 @@ export default function Game({ send, game, error, onLeave }) {
   const isYourTurn = game.turnSeat === game.yourSeat;
   const isYourTrumpChoice = game.phase === 'choosing_trump' && game.dealerSeat === game.yourSeat;
   const [sortMode, setSortMode] = useState(() => localStorage.getItem(SORT_KEY) || 'suit');
+  const [settings, setSettings] = useState(() => loadSettings());
+
+  function toggleSound() {
+    const next = { ...settings, soundEnabled: !settings.soundEnabled };
+    setSettings(next);
+    saveSettings(next);
+  }
+
+  function toggleEffects() {
+    const next = { ...settings, effectsEnabled: !settings.effectsEnabled };
+    setSettings(next);
+    saveSettings(next);
+  }
 
   function updateSortMode(mode) {
     setSortMode(mode);
@@ -97,19 +111,19 @@ export default function Game({ send, game, error, onLeave }) {
     if (prevHandRef.current !== game.handNumber) {
       prevHandRef.current = game.handNumber;
       setJustDealt(true);
-      sound.cardDeal();
+      if (settings.soundEnabled) sound.cardDeal();
       const t = setTimeout(() => setJustDealt(false), 900);
       return () => clearTimeout(t);
     }
-  }, [game.handNumber]);
+  }, [game.handNumber, settings.soundEnabled]);
 
   const prevTrumpRef = useRef(game.trumpSuit);
   useEffect(() => {
     if (prevTrumpRef.current !== game.trumpSuit && game.trumpSuit) {
       prevTrumpRef.current = game.trumpSuit;
-      sound.trumpChosen();
+      if (settings.soundEnabled) sound.trumpChosen();
     }
-  }, [game.trumpSuit]);
+  }, [game.trumpSuit, settings.soundEnabled]);
 
   const prevTrickLenForSoundRef = useRef(game.currentTrick.length);
   useEffect(() => {
@@ -119,24 +133,24 @@ export default function Game({ send, game, error, onLeave }) {
     const nowFull = game.currentTrick.length > 0;
 
     if (wasEmpty && nowFull) {
-      sound.cardPlay();
+      if (settings.soundEnabled) sound.cardPlay();
     } else if (wasFull && nowEmpty) {
-      sound.trickWin();
+      if (settings.soundEnabled) sound.trickWin();
     }
     prevTrickLenForSoundRef.current = game.currentTrick.length;
-  }, [game.currentTrick.length]);
+  }, [game.currentTrick.length, settings.soundEnabled]);
 
   useEffect(() => {
     if (game.phase === 'game_over') {
-      sound.gameOver();
+      if (settings.soundEnabled) sound.gameOver();
     }
-  }, [game.phase]);
+  }, [game.phase, settings.soundEnabled]);
 
   useEffect(() => {
-    if (sweeping) {
+    if (sweeping && settings.effectsEnabled) {
       screenShake(2, 150);
     }
-  }, [sweeping]);
+  }, [sweeping, settings.effectsEnabled]);
 
   return (
     <div className="game">
@@ -151,6 +165,20 @@ export default function Game({ send, game, error, onLeave }) {
               <span className="legend-item">×2 = double</span>
             </span>
           )}
+          <button
+            className="game__toggle"
+            onClick={toggleSound}
+            title={settings.soundEnabled ? 'Mute sound' : 'Unmute sound'}
+          >
+            {settings.soundEnabled ? '🔊' : '🔇'}
+          </button>
+          <button
+            className="game__toggle"
+            onClick={toggleEffects}
+            title={settings.effectsEnabled ? 'Disable effects' : 'Enable effects'}
+          >
+            {settings.effectsEnabled ? '✨' : '—'}
+          </button>
           <button onClick={onLeave}>Leave</button>
         </div>
       </div>
