@@ -71,10 +71,13 @@ test('legalPlays: marshmallow forces trump/lead when trump was already played', 
 
 test('playCard enforces turn, phase, and legality', () => {
   const state = setupTwoPlayer();
+  // Deterministic hands: the random deal must not accidentally make these plays legal.
+  state.players[0].hand = [C('Red', 3), C('Green', 9)];
+  state.players[1].hand = [C('Red', 1)];
   assert.throws(() => playCard(state, 1, C('Red', 1)), /Not your turn/);
-  assert.throws(() => playCard(state, 0, C('Blue', 12)), /Illegal card/);
+  assert.throws(() => playCard(state, 0, C('Blue', 12)), /Illegal card/); // Blue:12 not in hand
   state.phase = 'choosing_trump';
-  assert.throws(() => playCard(state, 0, C('Red', 1)), /Not currently playing/);
+  assert.throws(() => playCard(state, 0, C('Red', 3)), /Not currently playing/);
 });
 
 test('higher card of the lead suit wins the trick', () => {
