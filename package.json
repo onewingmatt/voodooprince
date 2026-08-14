@@ -11,13 +11,16 @@
     "test": "node --test \"test/unit/*.test.js\"",
     "test:gameplay": "node test/gameplay.mjs",
     "test:all": "npm test && npm run test:gameplay",
-    "lint": "npm --prefix client run lint"
+    "lint": "npm --prefix client run lint",
+    "start": "cross-env NODE_ENV=production node server/index.js",
+    "start:dev": "node server/index.js"
   },
   "dependencies": {
     "express": "^4.19.2",
     "ws": "^8.18.0"
   },
   "devDependencies": {
-    "concurrently": "^9.0.1"
+    "concurrently": "^9.0.1",
+    "cross-env": "^10.1.0"
   }
 }
