@@ -1,9 +1,13 @@
-import { SUITS, MIN_RANK, MAX_RANK } from './rules.js';
+import { SUITS, MIN_RANK, deckMaxRankFor } from './rules.js';
 
-export function buildDeck() {
+// buildDeck(playerCount, ruleset) produces the reduced deck used at that
+// player count: the full 80-card deck is cut to ranks 0-10 (2-3p), 0-12 (4p),
+// or left at 0-15 (5p). Marshmallow keeps the full deck for now (setup TBD).
+export function buildDeck(playerCount = 5, ruleset = 'full') {
+  const maxRank = deckMaxRankFor(playerCount, ruleset);
   const deck = [];
   for (const suit of SUITS) {
-    for (let rank = MIN_RANK; rank <= MAX_RANK; rank++) {
+    for (let rank = MIN_RANK; rank <= maxRank; rank++) {
       deck.push({ suit, rank });
     }
   }

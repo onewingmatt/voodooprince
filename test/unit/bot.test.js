@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { createGame, chooseTrump, legalPlays } from '../../server/game/engine.js';
+import { createGame, legalPlays } from '../../server/game/engine.js';
 import { chooseBotCard, chooseBotTrump } from '../../server/game/bot.js';
 
 const C = (suit, rank) => ({ suit, rank });
@@ -27,7 +27,9 @@ test('chooseBotCard always returns a legal play (fuzz over many random hands/tri
       [{ id: 'b', name: 'Bot', isBot: true }, { id: 'p', name: 'P', isBot: false }],
       ruleset
     );
-    if (ruleset === 'full') chooseTrump(state, 0, suits[iter % suits.length]);
+    // Hand 1 trump is random; pin it for a deterministic playing phase.
+    state.trumpSuit = suits[iter % suits.length];
+    state.phase = 'playing';
     // random hand of random size with random cards
     const hand = [];
     const seen = new Set();

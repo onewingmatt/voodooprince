@@ -12,15 +12,18 @@ const PORT = Number(process.env.VP_TEST_PORT ?? 3999);
 const WS_URL = `ws://localhost:${PORT}/ws`;
 
 const SUITS = ['Red', 'Blue', 'Green', 'Yellow', 'Purple'];
-const TRICKS_TO_EXIT = { 2: 6, 3: 4, 4: 3, 5: 3 };
+const TRICKS_TO_EXIT = { 3: 4, 4: 3, 5: 3 }; // 2p: no exit, first to 7
+const TWO_PLAYER_TARGET = 7;
+const DEAL_SIZE = { 2: 13, 3: 13, 4: 13, 5: 14 };
+const DECK_TOP = { 2: 10, 3: 10, 4: 12, 5: 15 };
 const HANDS_PER_GAME = 5;
 const MARSHMALLOW_TARGET = 20;
 
 // ---------- replicated rules (mirror of server/game/rules.js + engine.js) ----------
 const isSpecial = (c, ruleset) => ruleset !== 'marshmallow' && (c.rank === 5 || c.rank === 7);
 const trickValue = (c, ruleset) => (isSpecial(c, ruleset) ? 2 : 1);
-const dealSize = (n) => Math.min(14, Math.floor(80 / n));
-const threshold = (n) => TRICKS_TO_EXIT[n] ?? 3;
+const dealSize = (n, ruleset) => (ruleset === 'marshmallow' ? 14 : DEAL_SIZE[n] ?? 13);
+const threshold = (n, ruleset) => (ruleset !== 'marshmallow' && n === 2 ? Infinity : TRICKS_TO_EXIT[n] ?? 3);
 const cardKey = (c) => `${c.suit}:${c.rank}`;
 
 function legalPlays(hand, trick, trumpSuit, ruleset) {
@@ -55,16 +58,22 @@ function trickFromLog(logLines) {
   return { plays, winLine: logLines[lastWin] };
 }
 
-function winnerOf(plays, trumpSuit, ruleset) {
+function winnerOf(plays, trumpSuit, ruleset, playerCount) {
   if (plays.length === 0) return null;
+  const top = DECK_TOP[playerCount] ?? 15;
+  const eff = (p) => {
+    if (ruleset !== 'marshmallow' && p.rank === 0) {
+      const topInTrick = plays.some((q) => q.suit === p.suit && q.rank === top);
+      return topInTrick ? top + 1 : 0;
+    }
+    return p.rank;
+  };
   const leadSuit = plays[0].suit;
   const trumps = plays.filter((p) => p.suit === trumpSuit);
   const pool = trumps.length ? trumps : plays.filter((p) => p.suit === leadSuit);
   let best = pool[0];
   for (const p of pool) {
-    const r = ruleset !== 'marshmallow' && p.rank === 0 ? 16 : p.rank;
-    const br = ruleset !== 'marshmallow' && best.rank === 0 ? 16 : best.rank;
-    if (r > br) best = p;
+    if (eff(p) > eff(best)) best = p;
   }
   return best;
 }
@@ -152,8 +161,8 @@ function runGame(cfg) {
     let gameOverState = null;
     const mySeat = 0;
     const playerCount = cfg.bots + 1;
-    const t = threshold(playerCount);
-    const deal = dealSize(playerCount);
+    const t = threshold(playerCount, cfg.ruleset);
+    const deal = dealSize(playerCount, cfg.ruleset);
     const watchdog = setTimeout(() => fail('watchdog timeout (game too long)', c.errors), 8 * 60 * 1000);
 
     function checkInvariants(gs) {
@@ -193,7 +202,7 @@ function runGame(cfg) {
       if (lastState && lastState.phase === 'playing' && lastState.currentTrick.length > 0 && gs.currentTrick.length === 0) {
         const tr = trickFromLog(gs.log);
         if (!tr) throw new Error('trick resolved but no win line in log');
-        const winner = winnerOf(tr.plays, lastState.trumpSuit, cfg.ruleset);
+        const winner = winnerOf(tr.plays, lastState.trumpSuit, cfg.ruleset, playerCount);
         const winnerCard = tr.plays.find((p) => p.name === winner.name);
         const winName = tr.winLine.replace(/ wins the trick.*/, '');
         if (!winner || winner.name !== winName) {
@@ -353,18 +362,11 @@ async function runNegativeTests() {
     await h.send('ADD_BOT', {});
     await h.waitFor((e) => e.type === 'ROOM_STATE' && e.payload.seats.length === 2, 3000, 'room full');
     await h.send('START_GAME', {});
-    await h.waitFor((e) => e.type === 'GAME_STATE' && e.payload.phase === 'choosing_trump', 5000, 'choosing_trump');
-    await h.send('PLAY_CARD', { card: { suit: 'Red', rank: 1 } });
-    await expectError(h, (m) => m === 'Not currently playing.', 3000, 'Not currently playing');
-    out.push('PASS negative: PLAY_CARD during choosing_trump rejected');
-    await h.send('CHOOSE_TRUMP', { suit: 'Pink' });
-    await expectError(h, (m) => m === 'Invalid suit.', 3000, 'Invalid suit');
-    out.push('PASS negative: invalid trump suit rejected');
-    await p.send('CHOOSE_TRUMP', { suit: 'Red' });
-    await expectError(p, (m) => m === 'Only the dealer chooses trump.', 3000, 'Only the dealer chooses trump');
-    out.push('PASS negative: non-dealer CHOOSE_TRUMP rejected');
-    await h.send('CHOOSE_TRUMP', { suit: 'Red' });
+    // Hand 1 trump is drawn at random: the game goes straight to playing.
     await h.waitFor((e) => e.type === 'GAME_STATE' && e.payload.phase === 'playing', 5000, 'playing');
+    await h.send('CHOOSE_TRUMP', { suit: 'Pink' });
+    await expectError(h, (m) => m === 'Not choosing trump right now.', 3000, 'Not choosing trump right now');
+    out.push('PASS negative: CHOOSE_TRUMP during playing rejected');
     await p.send('PLAY_CARD', { card: { suit: 'Red', rank: 1 } });
     await expectError(p, (m) => m === 'Not your turn.', 3000, 'Not your turn');
     out.push('PASS negative: out-of-turn PLAY_CARD rejected');

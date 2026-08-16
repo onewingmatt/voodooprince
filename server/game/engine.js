@@ -6,6 +6,9 @@ import {
   isSpecial,
   isZeroCard,
   trickValue,
+  deckMaxRankFor,
+  isTwoPlayerSpecial,
+  TWO_PLAYER_TRICK_TARGET,
   HANDS_PER_GAME,
   MARSHMALLOW_TARGET_SCORE,
 } from './rules.js';
@@ -25,6 +28,7 @@ export function createGame(players, ruleset) {
       score: 0,
     })),
     dealerSeat: 0,
+    lastStandingSeat: null, // the player left when a hand ends; deals + chooses trump next hand
     handNumber: 0,
     phase: 'between_hands',
     trumpSuit: null,
@@ -44,25 +48,35 @@ function log(state, message) {
 
 export function startNextHand(state) {
   state.handNumber += 1;
-  const dealSize = dealSizeFor(state.playerCount);
-  let deck = shuffle(buildDeck());
+  const dealSize = dealSizeFor(state.playerCount, state.ruleset);
+  const deck = shuffle(buildDeck(state.playerCount, state.ruleset));
   state.players.forEach((p, i) => {
     p.hand = deck.slice(i * dealSize, (i + 1) * dealSize);
     p.tricksWon = 0;
     p.exited = false;
   });
   state.activePlayers = state.players.map((_, i) => i);
-  state.leaderSeat = state.dealerSeat;
   state.currentTrick = [];
 
   if (state.ruleset === 'marshmallow') {
     state.trumpSuit = SUITS[(state.handNumber - 1) % SUITS.length];
+    state.leaderSeat = state.dealerSeat;
     state.phase = 'playing';
     log(state, `Hand ${state.handNumber}: trump is ${state.trumpSuit}.`);
+  } else if (state.handNumber === 1) {
+    // Hand 1: shuffle the five suit cards, flip one for trump. The dealer leads.
+    state.trumpSuit = SUITS[Math.floor(Math.random() * SUITS.length)];
+    state.leaderSeat = state.dealerSeat;
+    state.phase = 'playing';
+    log(state, `Hand ${state.handNumber}: ${state.trumpSuit} is trump (drawn at random).`);
   } else {
+    // Hands 2+: the last-standing player from the previous hand deals and,
+    // after looking at their hand, chooses the trump suit.
+    state.dealerSeat = state.lastStandingSeat ?? state.dealerSeat;
     state.trumpSuit = null;
+    state.leaderSeat = state.dealerSeat;
     state.phase = 'choosing_trump';
-    log(state, `Hand ${state.handNumber}: dealer ${state.players[state.dealerSeat].name} is choosing trump.`);
+    log(state, `Hand ${state.handNumber}: ${state.players[state.dealerSeat].name} is choosing trump.`);
   }
   return state;
 }
@@ -77,8 +91,18 @@ export function chooseTrump(state, seat, suit) {
   return state;
 }
 
-function effectiveRank(card, ruleset) {
-  if (isZeroCard(card, ruleset)) return 16;
+// The voodoo doll (0) is the weakest card of its suit unless the suit's highest
+// card (10/12/15 depending on player count) is in the SAME trick — then the 0
+// outranks it. Trump still beats a non-trump 0 (it's compared inside its own
+// suit pool only).
+function effectiveRank(card, state) {
+  if (isZeroCard(card, state.ruleset)) {
+    const top = deckMaxRankFor(state.playerCount, state.ruleset);
+    const topPlayed = state.currentTrick.some(
+      (p) => p.card.suit === card.suit && p.card.rank === top
+    );
+    return topPlayed ? top + 1 : 0;
+  }
   return card.rank;
 }
 
@@ -113,13 +137,13 @@ export function nextToPlay(state) {
   return activePlayers[pos];
 }
 
-function resolveTrickWinner(trick, trumpSuit, ruleset) {
+function resolveTrickWinner(trick, state) {
   const leadSuit = trick[0].card.suit;
-  const trumpPlays = trick.filter((p) => p.card.suit === trumpSuit);
+  const trumpPlays = trick.filter((p) => p.card.suit === state.trumpSuit);
   const pool = trumpPlays.length ? trumpPlays : trick.filter((p) => p.card.suit === leadSuit);
   let best = pool[0];
   for (const p of pool) {
-    if (effectiveRank(p.card, ruleset) > effectiveRank(best.card, ruleset)) best = p;
+    if (effectiveRank(p.card, state) > effectiveRank(best.card, state)) best = p;
   }
   return best;
 }
@@ -153,13 +177,40 @@ export function playCard(state, seat, card) {
 }
 
 function resolveTrick(state) {
-  const winner = resolveTrickWinner(state.currentTrick, state.trumpSuit, state.ruleset);
+  const winner = resolveTrickWinner(state.currentTrick, state);
   const winningPlayer = state.players[winner.seat];
   const value = trickValue(winner.card, state.ruleset);
   winningPlayer.tricksWon += value;
   log(state, `${winningPlayer.name} wins the trick${value === 2 ? ' (counts double!)' : ''}.`);
 
   const seatOrder = state.players.map((_, i) => i);
+
+  // 2-player special mode: no exits. The hand ends the moment someone reaches
+  // 7 tricks. They score one point per trick their opponent won; the opponent
+  // scores one point per trick they would still need to reach 7.
+  if (isTwoPlayerSpecial(state.playerCount, state.ruleset)) {
+    state.currentTrick = [];
+    if (winningPlayer.tricksWon >= TWO_PLAYER_TRICK_TARGET) {
+      const otherSeat = seatOrder.find((s) => s !== winner.seat);
+      const other = state.players[otherSeat];
+      winningPlayer.score += other.tricksWon;
+      other.score += Math.max(0, TWO_PLAYER_TRICK_TARGET - other.tricksWon);
+      log(
+        state,
+        `${winningPlayer.name} reached ${TWO_PLAYER_TRICK_TARGET} tricks. ` +
+          `Scores ${other.tricksWon}; ${other.name} scores ${Math.max(0, TWO_PLAYER_TRICK_TARGET - other.tricksWon)}.`
+      );
+      // The player who didn't reach the target is the "last standing" analog
+      // and deals + chooses trump next hand (inferred for 2p; the card-sized
+      // rules only spell out the multi-player end-of-hand flow).
+      state.lastStandingSeat = otherSeat;
+      finishHand(state);
+      return;
+    }
+    state.leaderSeat = winner.seat;
+    return;
+  }
+
   const threshold = tricksToExit(state.playerCount);
 
   if (winningPlayer.tricksWon >= threshold) {
@@ -181,6 +232,7 @@ function resolveTrick(state) {
     const lastPlayer = state.players[lastSeat];
     lastPlayer.score += lastPlayer.tricksWon;
     log(state, `${lastPlayer.name} is last standing, scoring ${lastPlayer.tricksWon}.`);
+    state.lastStandingSeat = lastSeat;
     finishHand(state);
     return;
   }
@@ -191,7 +243,12 @@ function resolveTrick(state) {
 }
 
 function finishHand(state) {
-  state.dealerSeat = (state.dealerSeat + 1) % state.playerCount;
+  if (state.ruleset === 'marshmallow') {
+    state.dealerSeat = (state.dealerSeat + 1) % state.playerCount;
+  } else {
+    // The last-standing player deals the next round.
+    state.dealerSeat = state.lastStandingSeat;
+  }
 
   const gameOver =
     state.ruleset === 'marshmallow'
