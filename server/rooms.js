@@ -112,6 +112,10 @@ export function getRoom(code) {
   return rooms.get(code?.toUpperCase());
 }
 
+export function roomCount() {
+  return rooms.size;
+}
+
 export function joinRoom(code, name) {
   const room = getRoom(code);
   if (!room) throw new Error('Room not found.');

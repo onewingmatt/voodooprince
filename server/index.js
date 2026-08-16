@@ -1,5 +1,6 @@
 import express from 'express';
 import { createServer } from 'http';
+import { readFileSync } from 'node:fs';
 import { WebSocketServer } from 'ws';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -19,15 +20,37 @@ import {
   serializeGameFor,
   detachConnection,
   runBots,
+  roomCount,
 } from './rooms.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = process.env.PORT || 3001;
 const HOST_SEAT = 0;
 
+// Hard limits for a public deployment.
+const MAX_WS_MESSAGE_BYTES = 16 * 1024; // per client message
+const RATE_LIMIT = { windowMs: 1000, max: 30 }; // actions/sec per connection
+
+const pkg = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
+
 const app = express();
+// Behind a reverse proxy / load balancer doing TLS termination.
+app.set('trust proxy', true);
 const clientDist = path.join(__dirname, '..', 'client', 'dist');
 app.use(express.static(clientDist));
+
+// Health check for hosts, load balancers, and uptime monitors.
+app.get('/healthz', (req, res) => {
+  res.json({
+    status: 'ok',
+    version: pkg.version,
+    mode: process.env.NODE_ENV || 'development',
+    node: process.version,
+    uptime: process.uptime(),
+    rooms: roomCount(),
+  });
+});
+
 app.get('*', (req, res, next) => {
   res.sendFile(path.join(clientDist, 'index.html'), (err) => {
     if (err) next();
@@ -80,11 +103,25 @@ function requireHost(room, ws) {
   if (ws.seatIndex !== HOST_SEAT) throw new Error('Only the host can do that.');
 }
 
+function isRateLimited(ws) {
+  const now = Date.now();
+  ws._actionTimes = (ws._actionTimes ?? []).filter((t) => now - t < RATE_LIMIT.windowMs);
+  if (ws._actionTimes.length >= RATE_LIMIT.max) return true;
+  ws._actionTimes.push(now);
+  return false;
+}
+
 wss.on('connection', (ws) => {
   ws.roomCode = null;
   ws.seatIndex = null;
 
   ws.on('message', (raw) => {
+    if (raw.length > MAX_WS_MESSAGE_BYTES) {
+      return send(ws, ServerEvent.ERROR, { message: 'Message too large.' });
+    }
+    if (isRateLimited(ws)) {
+      return send(ws, ServerEvent.ERROR, { message: 'Too many actions. Slow down.' });
+    }
     let msg;
     try {
       msg = JSON.parse(raw.toString());
