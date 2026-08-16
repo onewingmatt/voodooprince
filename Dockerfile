@@ -12,6 +12,9 @@ RUN cd client && npm ci
 COPY client/ client/
 RUN npm run build
 
+# Server source for the runtime stage
+COPY server/ server/
+
 # Drop dev dependencies for a lean runtime image
 RUN npm prune --omit=dev
 
