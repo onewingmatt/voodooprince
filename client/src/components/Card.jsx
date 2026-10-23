@@ -1,9 +1,9 @@
 const SUIT_COLOR = {
-  Red: '#d9435e',
-  Blue: '#2f6fed',
-  Green: '#28a35c',
-  Yellow: '#d6a419',
-  Purple: '#8a4fd6',
+  Red: '#b23a2e',
+  Blue: '#2760c4',
+  Green: '#1e7a53',
+  Yellow: '#a97f2f',
+  Purple: '#7a4397',
 };
 
 const SUIT_ICON = {
@@ -14,39 +14,50 @@ const SUIT_ICON = {
   Purple: '♥',
 };
 
-export default function Card({ card, onClick, disabled, trump, small, illegal, justPlayed }) {
-  const color = SUIT_COLOR[card.suit] ?? '#333';
+export default function Card({ card, onClick, disabled, trump, small, illegal, justPlayed, playable }) {
+  const color = SUIT_COLOR[card.suit] ?? '#211e1a';
   const icon = SUIT_ICON[card.suit] ?? '●';
   const isSpecial = card.rank === 0 || card.rank === 5 || card.rank === 7;
-  let specialSymbol = null;
+  let specialLabel = null;
   let specialTitle = null;
 
   if (card.rank === 0) {
-    specialSymbol = '⏬';
-    specialTitle = 'beats any card in its suit';
+    specialLabel = 'VOODOO';
+    specialTitle = 'Voodoo — beats the top card of its suit when both are played';
   } else if (card.rank === 5 || card.rank === 7) {
-    specialSymbol = '×2';
-    specialTitle = 'counts as 2 tricks';
+    specialLabel = '×2';
+    specialTitle = 'Counts as two tricks';
   }
 
-  let title = illegal ? `${card.rank} of ${card.suit} (not legal to play)` : `${card.rank} of ${card.suit}`;
-  if (specialTitle) {
-    title += ` — ${specialTitle}`;
-  }
+  let title = `${card.rank} of ${card.suit}`;
+  if (specialTitle) title += ` — ${specialTitle}`;
+  if (illegal) title += ' (not legal — must follow suit)';
+  if (trump) title += ' — trump';
+
+  const classes = [
+    'card',
+    disabled ? 'card--disabled' : '',
+    small ? 'card--small' : '',
+    illegal ? 'card--illegal' : '',
+    playable ? 'card--playable' : '',
+    justPlayed ? 'card--played' : '',
+    isSpecial ? 'card--special' : '',
+  ].filter(Boolean).join(' ');
 
   return (
     <button
-      className={`card${disabled ? ' card--disabled' : ''}${small ? ' card--small' : ''}${illegal ? ' card--illegal' : ''}${justPlayed ? ' card--played' : ''}${isSpecial ? ' card--special' : ''}`}
+      className={classes}
       style={{ '--suit-color': color }}
       onClick={onClick}
       disabled={disabled}
       title={title}
+      aria-label={title}
     >
       <span className="card__corner card__corner--tl">{card.rank}</span>
-      <span className="card__icon">{icon}</span>
+      <span className="card__icon" aria-hidden="true">{icon}</span>
       <span className="card__corner card__corner--br">{card.rank}</span>
-      {trump && <span className="card__trump">★</span>}
-      {specialSymbol && <span className="card__special-symbol">{specialSymbol}</span>}
+      {trump && <span className="card__trump" aria-hidden="true">★</span>}
+      {specialLabel && <span className="card__special-symbol">{specialLabel}</span>}
     </button>
   );
 }
