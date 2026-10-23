@@ -1,0 +1,6 @@
+{
+  "host": "onewing@10.0.0.145",
+  "container": "voodooprince",
+  "files": ["package.json", "package-lock.json", "server/index.js", "server/rooms.js"],
+  "url": "https://voodoo.onewing.top/"
+}

@@ -9,9 +9,13 @@
     "dev:client": "npm --prefix client run dev",
     "build": "npm --prefix client run build",
     "test": "node --test \"test/unit/*.test.js\"",
-    "test:gameplay": "node test/gameplay.mjs",
     "audit": "tsx scripts/independent-rules-check.ts",
+    "replay": "node test/gameplay.mjs",
+    "test:gameplay": "node test/gameplay.mjs",
     "test:all": "npm test && npm run test:gameplay",
+    "deploy:verify": "node scripts/deploy-verify.mjs",
+    "gate": "node scripts/gate.mjs",
+    "gate:strict": "node scripts/gate.mjs --strict",
     "lint": "npm --prefix client run lint",
     "start": "cross-env NODE_ENV=production node server/index.js",
     "start:dev": "node server/index.js"
@@ -26,5 +30,17 @@
     "cross-env": "^10.1.0",
     "tsx": "^4.23.12",
     "typescript": "^7.0.2"
+  },
+  "gate": {
+    "floor": [
+      "test",
+      "audit",
+      "replay",
+      "deploy:verify"
+    ],
+    "variants": [
+      "test:gameplay",
+      "test:all"
+    ]
   }
 }
